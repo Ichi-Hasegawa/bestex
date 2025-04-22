@@ -4,4 +4,4 @@
 * additional data
 
 ## splash
-* using normal data ×100
+* using normal data
