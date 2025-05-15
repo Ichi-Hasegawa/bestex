@@ -9,7 +9,7 @@ import torch
 from src.anomaly_score import get_threshold
 from src.dataset import MyDataset
 from src.dataset_split import dataset_split
-from src.histogram import histogram
+from src.histogram import histogram, rank_histogram
 from src.model import ConvAutoEncoder, ResNet50AutoEncoder
 from src.test import test_model
 from src.train import train_model
@@ -26,12 +26,12 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 parser = argparse.ArgumentParser(description="Experimental Settings", epilog="End description !!")
 
 parser.add_argument("--crop_flag", type=str, default="on", help="crop flag")
-parser.add_argument("--mask_flag", type=str, default="off", help="mask flag")  # setting for img_crop2
+parser.add_argument("--mask_flag", type=str, default="on", help="mask flag")  # setting for img_crop2
 parser.add_argument("--rotate_flag", type=str, default="on", help="rotate flag")
 parser.add_argument("--rotate_angle", type=int, default=1, help="rotate angle")
 parser.add_argument("--shift_flag", type=str, default="on", help="shift flag")
 parser.add_argument("--shift_range", type=int, default=1, help="shift range")
-parser.add_argument("--csv_path", type=str, default="data/data_20250326.csv", help="csv path")
+parser.add_argument("--csv_path", type=str, default="data/data_0326.csv", help="csv path")
 
 parser.add_argument("--lr", type=float, default=1e-3, help="learning rate")
 parser.add_argument("--batch_size", type=int, default=8, help="batch size")
@@ -119,6 +119,7 @@ def test(threshold):
 
     # Test Result Visualization
     histogram(anomaly_dict["anomaly_scores"], normal_dict["normal_scores"], threshold, out_dir)
+    rank_histogram(anomaly_dict, normal_dict, threshold, out_dir)
 
 
 def main():
