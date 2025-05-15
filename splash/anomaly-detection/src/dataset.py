@@ -13,8 +13,8 @@ def img_crop(img, top=256):
     #img = img[top : img.shape[0], 0 : img.shape[1]]  # (1792, 3072, 3)
     return img
 
-def img_crop2(img, top=472, bottom=1496, left=768):
-    img = img[top:bottom, left : img.shape[1]]  # (1024, 2304, 3)
+def img_crop2(img, top=500, bottom=4000, left=580, right=4000):
+    img = img[top:bottom, left:right]  # (1024, 2304, 3)
     return img
 
 # Mask processing (off)
@@ -102,7 +102,6 @@ class MyDataset(Dataset):
             raise ValueError(f"[ERROR] Failed to read image: {img_path}")
 
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = cv2.resize(img, (1024, 1024), interpolation=cv2.INTER_AREA)
 
         img = self.img_crop(img)
 
@@ -114,7 +113,8 @@ class MyDataset(Dataset):
 
         if self.rotate_img is not None:
             img = self.rotate_img(img, self.rotate_angle)
-
+            
+        img = cv2.resize(img, (1024, 1024), interpolation=cv2.INTER_AREA)
         img = img.astype("float32") / 255.0
         img = np.clip(img, 0, 1)
         img = img.transpose(2, 0, 1)  # (ch, h, w)

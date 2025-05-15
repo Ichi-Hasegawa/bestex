@@ -13,4 +13,5 @@ morita/tlo/bestex-splashguard/20250326/NG/1n.png
 ...
 morita/tlo/bestex-splashguard/20250326/NG/100n.png
 
-
+## TO DO
+分割して入力
