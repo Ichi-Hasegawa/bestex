@@ -32,8 +32,8 @@ def save_to_csv(file_paths: list[str], output_csv: str) -> None:
 def main():
 
     # User settings
-    directory = "/net/nfs3/export/dataset/morita/tlo/bestex-weld2/"
-    output_csv = "data/data_20250325.csv"
+    directory = "/net/nfs3/export/dataset/morita/tlo/bestex-weld2/20250325"
+    output_csv = "data/data_add.csv"
 
     # 取り除くファイルに含まれる文字列
     exclude_str = "溶接ズレ写真"

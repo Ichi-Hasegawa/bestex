@@ -3,6 +3,70 @@
 
 import torch.nn as nn
 import torchvision.models as models
+import torch.nn.functional as F
+
+# class ConvAutoEncoder(nn.Module):
+#     def __init__(self):
+#         super(ConvAutoEncoder, self).__init__()
+#         # Encoder
+#         self.encoder = nn.Sequential(
+#             nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1),
+#             nn.ReLU(True),
+#             nn.Dropout(0.2),
+#             nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
+#             nn.ReLU(True),
+#             nn.Dropout(0.2),
+#             nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1),
+#             nn.ReLU(True),
+#             nn.Dropout(0.2),
+#             nn.Conv2d(256, 512, kernel_size=3, stride=2, padding=1),
+#             nn.ReLU(True),
+#             nn.Dropout(0.2),
+#             nn.Conv2d(512, 1024, kernel_size=3, stride=2, padding=1),
+#             nn.ReLU(True),
+#             nn.Dropout(0.2),
+#             nn.Conv2d(1024, 512, kernel_size=3, stride=2, padding=1),
+#             nn.ReLU(True),
+#             nn.Dropout(0.2),
+#             nn.Conv2d(512, 256, kernel_size=3, stride=2, padding=1),
+#             nn.ReLU(True),
+#             nn.Dropout(0.2),
+#             nn.Conv2d(256, 128, kernel_size=3, stride=2, padding=1),
+#             nn.ReLU(True),
+#             nn.Dropout(0.2),
+#         )
+
+#         # Decoder
+#         self.decoder = nn.Sequential(
+#             nn.ConvTranspose2d(128, 256, kernel_size=3, stride=2, padding=1, output_padding=1),
+#             nn.ReLU(True),
+#             #nn.Dropout(0.2),
+#             nn.ConvTranspose2d(256, 512, kernel_size=3, stride=2, padding=1, output_padding=1),
+#             nn.ReLU(True),
+#             #nn.Dropout(0.2),
+#             nn.ConvTranspose2d(512, 1024, kernel_size=3, stride=2, padding=1, output_padding=1),
+#             nn.ReLU(True),
+#             #nn.Dropout(0.2),
+#             nn.ConvTranspose2d(1024, 512, kernel_size=3, stride=2, padding=1, output_padding=1),
+#             nn.ReLU(True),
+#             #nn.Dropout(0.2),
+#             nn.ConvTranspose2d(512, 256, kernel_size=3, stride=2, padding=1, output_padding=1),
+#             nn.ReLU(True),
+#             #nn.Dropout(0.2),
+#             nn.ConvTranspose2d(256, 128, kernel_size=3, stride=2, padding=1, output_padding=1),
+#             nn.ReLU(True),
+#             #nn.Dropout(0.2),
+#             nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2, padding=1, output_padding=1),
+#             nn.ReLU(True),
+#             #nn.Dropout(0.2),
+#             nn.ConvTranspose2d(64, 3, kernel_size=3, stride=2, padding=1, output_padding=1),
+#             nn.Tanh(),
+#         )
+
+#     def forward(self, x):
+#         x = self.encoder(x)
+#         x = self.decoder(x)
+#         return x
 
 
 class ConvAutoEncoder(nn.Module):
@@ -40,32 +104,27 @@ class ConvAutoEncoder(nn.Module):
         self.decoder = nn.Sequential(
             nn.ConvTranspose2d(128, 256, kernel_size=3, stride=2, padding=1, output_padding=1),
             nn.ReLU(True),
-            #nn.Dropout(0.2),
             nn.ConvTranspose2d(256, 512, kernel_size=3, stride=2, padding=1, output_padding=1),
             nn.ReLU(True),
-            #nn.Dropout(0.2),
             nn.ConvTranspose2d(512, 1024, kernel_size=3, stride=2, padding=1, output_padding=1),
             nn.ReLU(True),
-            #nn.Dropout(0.2),
             nn.ConvTranspose2d(1024, 512, kernel_size=3, stride=2, padding=1, output_padding=1),
             nn.ReLU(True),
-            #nn.Dropout(0.2),
             nn.ConvTranspose2d(512, 256, kernel_size=3, stride=2, padding=1, output_padding=1),
             nn.ReLU(True),
-            #nn.Dropout(0.2),
             nn.ConvTranspose2d(256, 128, kernel_size=3, stride=2, padding=1, output_padding=1),
             nn.ReLU(True),
-            #nn.Dropout(0.2),
             nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2, padding=1, output_padding=1),
             nn.ReLU(True),
-            #nn.Dropout(0.2),
             nn.ConvTranspose2d(64, 3, kernel_size=3, stride=2, padding=1, output_padding=1),
             nn.Tanh(),
         )
 
     def forward(self, x):
+        original_size = x.shape[-2:]  # 入力画像のサイズ（H, W）
         x = self.encoder(x)
         x = self.decoder(x)
+        x = F.interpolate(x, size=original_size, mode='bilinear', align_corners=False)
         return x
 
 

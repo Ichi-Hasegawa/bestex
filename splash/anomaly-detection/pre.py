@@ -16,6 +16,8 @@ def img_crop2(img, top=500, bottom=4000, left=580, right=4000):
     if cropped.size == 0:
         raise ValueError("Cropped image is empty. Adjust cropping parameters.")
 
+    print(f"Cropped image shape: {cropped.shape}")  # ← 追加
+
     return cropped
 
 
@@ -25,7 +27,7 @@ img_path = "/net/nfs3/export/dataset/morita/tlo/bestex-splashguard/20250326/OK/1
 # 元画像読み込み
 img = cv2.imread(img_path)
 assert img is not None, f"Failed to load image: {img_path}"
-print(f"Original image shape: {img.shape}")
+print(f"Original image shape: {img.shape}")  # ← 追加
 
 # クロップ適用
 cropped = img_crop2(img)
@@ -33,13 +35,14 @@ cropped = img_crop2(img)
 # 表示
 plt.subplot(1, 2, 1)
 plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-plt.title("Original")
+plt.title(f"Original\n{img.shape[0]}x{img.shape[1]}")  # 高さx幅
 
 plt.subplot(1, 2, 2)
 plt.imshow(cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB))
-plt.title("Cropped")
+plt.title(f"Cropped\n{cropped.shape[0]}x{cropped.shape[1]}")  # 高さx幅
 
 plt.tight_layout()
 plt.show()
+
 
 

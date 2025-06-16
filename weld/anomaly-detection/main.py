@@ -31,7 +31,7 @@ parser.add_argument("--rotate_flag", type=str, default="on", help="rotate flag")
 parser.add_argument("--rotate_angle", type=int, default=1, help="rotate angle")
 parser.add_argument("--shift_flag", type=str, default="on", help="shift flag")
 parser.add_argument("--shift_range", type=int, default=1, help="shift range")
-parser.add_argument("--csv_path", type=str, default="data/data_0907.csv", help="csv path")
+parser.add_argument("--csv_path", type=str, default="data/data_250325.csv", help="csv path")
 
 parser.add_argument("--lr", type=float, default=1e-3, help="learning rate")
 parser.add_argument("--batch_size", type=int, default=8, help="batch size")
@@ -80,7 +80,7 @@ def train(anomaly_val_data):
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=NUM_WORKERS, shuffle=True, drop_last=True, pin_memory=True)
     val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, num_workers=NUM_WORKERS, shuffle=False, drop_last=False, pin_memory=True)
     dataloaders_dict = {"train": train_dataloader, "val": val_dataloader}
-
+    
     net = ConvAutoEncoder().to(device)
 
     criterion = torch.nn.MSELoss()

@@ -1,7 +1,8 @@
 venv/
 log/
 __pycache__/
-
+_out/
+data/
 result/
 
 memo.txt

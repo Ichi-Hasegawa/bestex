@@ -14,68 +14,73 @@ from sklearn.metrics import (
 from src.heatmap import heatmap
 
 
-def test_model(test_dataloader, expt_fold, criterion, device, threshold):
+def test_model(test_dataloader, expt_fold, criterion, device, threshold, patch_split):
     """Test
     Args:
-        test_dataloader (_type_): _description_
-        expt_fold (_type_): _description_
-        criterion (_type_): _description_
-        device (_type_): _description_
-        threshold (_type_): _description_
+        test_dataloader: DataLoader yielding (N_patches, 3, H, W)
+        expt_fold: experiment output directory
+        criterion: loss function (e.g., MSELoss)
+        device: torch.device
+        threshold: float for anomaly decision
+        patch_split: int (e.g., 5 for 5x5 split)
 
     Returns:
-        anomaly_dict: ["anomalies": str, "anomaly_scores": float]
-        normal_dict: ["normals": str, "normals_scores": float]
+        anomaly_dict, normal_dict
     """
 
-    # Best model
-    #best_model = torch.load("{}best_model.pth".format(expt_fold))
-    #best_model = torch.load(f"{out_dir}/best_model.pth", weights_only=False)
-    # 修正後
     best_model = torch.load(f"{expt_fold}/best_model.pth", weights_only=False)
-
-
     best_model.eval()
 
     anomalies = []
     anomaly_scores = []
-    #anomaly_ranks = []
     normals = []
     normal_scores = []
-    #normal_ranks = []
 
     true_labels = []
     pred_labels = []
     scores = []
 
     with torch.no_grad():
-
-        #for inputs, labels, ranks, path in test_dataloader:
         for inputs, labels, path in test_dataloader:
+            # inputs: (B=1, N, 3, H, W) → reshape to (N, 3, H, W)
+            if inputs.dim() == 5:
+                inputs = inputs.squeeze(0)
 
             inputs = inputs.to(device)
             labels = labels.to(device)
 
-            outputs = best_model(inputs).to(device)
-            diff = criterion(outputs, inputs)
+            outputs = best_model(inputs)
+            diff = criterion(outputs, inputs).item()  # 平均MSEでスコア化
 
-            scores.append(diff.item())
+            scores.append(diff)
             true_labels.append(labels.item())
-            pred_labels.append(1 if diff.item() > threshold else 0)
+            pred_labels.append(1 if diff > threshold else 0)
 
-            # Save Fig
-            heatmap(inputs, outputs, path[0], out_dir=expt_fold)
+            # パッチ群を1枚の画像に再構成
+            C, H, W = inputs.shape[1:]
 
+            def stitch(patches):
+                rows = []
+                for i in range(patch_split):
+                    row = torch.cat([patches[i * patch_split + j] for j in range(patch_split)], dim=2)
+                    rows.append(row)
+                return torch.cat(rows, dim=1)  # (C, H×patch_split, W×patch_split)
+
+            stitched_input = stitch(inputs.cpu())
+            stitched_output = stitch(outputs.cpu())
+
+            # Heatmap保存
+            heatmap(stitched_input, stitched_output, path[0], out_dir=expt_fold)
+
+            # スコア記録
             if labels.item() == 1:
                 anomalies.append(path[0])
-                anomaly_scores.append(diff.item())
-                #anomaly_ranks.append(ranks.item())
+                anomaly_scores.append(diff)
             else:
                 normals.append(path[0])
-                normal_scores.append(diff.item())
-                #normal_ranks.append(ranks.item())
+                normal_scores.append(diff)
 
-    # Save results to CSV
+    # Metrics保存
     metrics = {
         "Accuracy": accuracy_score(true_labels, pred_labels),
         "Precision": precision_score(true_labels, pred_labels),
@@ -83,26 +88,12 @@ def test_model(test_dataloader, expt_fold, criterion, device, threshold):
         "ROC-AUC": roc_auc_score(true_labels, scores),
         "F1 Score": f1_score(true_labels, pred_labels),
     }
+    pd.DataFrame(metrics, index=[0]).to_csv(f"{expt_fold}/metrics.csv", index=False)
 
-    df_metrics = pd.DataFrame(metrics, index=[0])
-    df_metrics.to_csv(f"{expt_fold}/metrics.csv", index=False)
+    # スコアCSV保存
+    pd.DataFrame({"anomalies": anomalies, "anomaly_scores": anomaly_scores}).to_csv(f"{expt_fold}/anomalies.csv", index=False)
+    pd.DataFrame({"normals": normals, "normal_scores": normal_scores}).to_csv(f"{expt_fold}/normals.csv", index=False)
 
-    #anomaly_dict = {"anomalies": anomalies, "anomaly_scores": anomaly_scores, "anomaly_ranks": anomaly_ranks}
-    #normal_dict = {"normals": normals, "normal_scores": normal_scores, "normal_ranks": normal_ranks}
-    anomaly_dict = {"anomalies": anomalies, "anomaly_scores": anomaly_scores}
-    normal_dict = {"normals": normals, "normal_scores": normal_scores}
+    return {"anomalies": anomalies, "anomaly_scores": anomaly_scores}, {"normals": normals, "normal_scores": normal_scores}
 
-    # Save all to CSV
-    #df_anomalies = pd.DataFrame(anomaly_dict, columns=["anomalies", "anomaly_scores", "anomaly_ranks"])
-    #df_anomalies.to_csv("{}/anomalies.csv".format(expt_fold), index=False)
 
-    #df_normals = pd.DataFrame(normal_dict, columns=["normals", "normal_scores", "normal_ranks"])
-    #df_normals.to_csv("{}/normals.csv".format(expt_fold), index=False)
-
-    df_anomalies = pd.DataFrame(anomaly_dict, columns=["anomalies", "anomaly_scores"])
-    df_anomalies.to_csv(f"{expt_fold}/anomalies.csv", index=False)
-
-    df_normals = pd.DataFrame(normal_dict, columns=["normals", "normal_scores"])
-    df_normals.to_csv(f"{expt_fold}/normals.csv", index=False)
-
-    return anomaly_dict, normal_dict

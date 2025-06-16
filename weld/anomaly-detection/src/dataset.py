@@ -169,5 +169,5 @@ class MyDataset(Dataset):
         img = img.astype("float32") / 255.0  # float32
         img = np.clip(img, 0, 1)  # 0-1
         img = img.transpose(2, 0, 1)  # (ch, h, w)
-
+        #print(f"[INFO] Final image shape: {img.shape} (C, H, W)")
         return img, label, rank, img_path

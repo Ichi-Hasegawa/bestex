@@ -1,8 +1,5 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-import random
 import os
+import random
 import cv2
 import numpy as np
 import pandas as pd
@@ -10,11 +7,11 @@ from torch.utils.data import Dataset
 
 # Cropping Image (off)
 def img_crop(img, top=256):
-    #img = img[top : img.shape[0], 0 : img.shape[1]]  # (1792, 3072, 3)
+    # デフォルトはcropしない
     return img
 
 def img_crop2(img, top=500, bottom=4000, left=580, right=4000):
-    img = img[top:bottom, left:right]  # (1024, 2304, 3)
+    img = img[top:bottom, left:right]
     return img
 
 # Mask processing (off)
@@ -53,10 +50,12 @@ def shift_img(img, shift_range: int):
     shifted_img = cv2.warpAffine(img, shift_matrix, (width, height))
     return shifted_img
 
+# Dataset class
 class MyDataset(Dataset):
-
-    def __init__(self, csv_file, crop_flag, mask_flag, rotate_flag, rotate_angle, shift_flag, shift_range):
+    def __init__(self, csv_file, crop_flag, mask_flag, rotate_flag, rotate_angle, shift_flag, shift_range, patch_split):
         self.data = pd.read_csv(csv_file)
+        self.patch_split = patch_split
+        self.printed_image_size = False
 
         if crop_flag == "on":
             self.img_crop = img_crop2
@@ -65,24 +64,9 @@ class MyDataset(Dataset):
         else:
             raise ValueError("crop_flag is invalid.")
 
-        if rotate_flag == "on":
-            self.rotate_img = rotate_img
-        elif rotate_flag == "off":
-            self.rotate_img = None
-        else:
-            raise ValueError("rotate_flag is invalid.")
-
-        if shift_flag == "on":
-            self.shift_img = shift_img
-        elif shift_flag == "off":
-            self.shift_img = None
-        else:
-            raise ValueError("shift_flag is invalid.")
-
-        if mask_flag == "on":
-            self.mask_img = mask_processing
-        elif mask_flag == "off":
-            self.mask_img = None
+        self.rotate_img = rotate_img if rotate_flag == "on" else None
+        self.shift_img = shift_img if shift_flag == "on" else None
+        self.mask_img = mask_processing if mask_flag == "on" else None
 
         self.rotate_angle = rotate_angle
         self.shift_range = shift_range
@@ -91,6 +75,8 @@ class MyDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, item):
+        import math
+
         img_path = self.data.iloc[item, 0]
         label = self.data.iloc[item, 1]
 
@@ -102,21 +88,49 @@ class MyDataset(Dataset):
             raise ValueError(f"[ERROR] Failed to read image: {img_path}")
 
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
         img = self.img_crop(img)
 
         if self.mask_img is not None:
             img = self.mask_img(img)
-
         if self.shift_img is not None:
             img = self.shift_img(img, self.shift_range)
-
         if self.rotate_img is not None:
             img = self.rotate_img(img, self.rotate_angle)
-            
-        img = cv2.resize(img, (1024, 1024), interpolation=cv2.INTER_AREA)
+
+        # --- サイズ揃え：patch_split × patch_split にリサイズ ---
+        height, width = img.shape[:2]
+        patch_size_h = math.ceil(height / self.patch_split)
+        patch_size_w = math.ceil(width / self.patch_split)
+
+        target_h = patch_size_h * self.patch_split
+        target_w = patch_size_w * self.patch_split
+
+        if (target_h != height) or (target_w != width):
+            img = cv2.resize(img, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
+
+        # --- 正規化とチャンネル順変換 ---
         img = img.astype("float32") / 255.0
         img = np.clip(img, 0, 1)
-        img = img.transpose(2, 0, 1)  # (ch, h, w)
+        img = img.transpose(2, 0, 1)  # (C, H, W)
+
+        if not self.printed_image_size:
+            print(f"[INFO] Input image shape (resized): {img.shape[1]}x{img.shape[2]}")
+            self.printed_image_size = True
+
+        # --- パッチ分割 ---
+        C, H, W = img.shape
+        patch_size_h = H // self.patch_split
+        patch_size_w = W // self.patch_split
+
+        patches = []
+        for i in range(self.patch_split):
+            for j in range(self.patch_split):
+                top = i * patch_size_h
+                left = j * patch_size_w
+                patch = img[:, top:top + patch_size_h, left:left + patch_size_w]
+                patches.append(patch)
+
+        img = np.stack(patches)  # → (N, C, h, w)
 
         return img, label, img_path
+
