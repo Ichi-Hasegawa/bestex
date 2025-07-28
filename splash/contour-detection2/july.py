@@ -3,14 +3,36 @@
 
 import os
 import cv2
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from skimage.feature import hog
+
 from src.loader import load_data
 from src.registration import rigid_registration
-from src.feature import hog_feature
-from src.scorer import anomaly_score
-from src.report import center_crop, save_hog_visual
+from src.report import center_crop
+
+
+def hog_feature_map(img, cell_size=8, block_size=2, orientations=9):
+    if img.ndim == 3:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    img = img.astype(np.float32) / 255.0
+
+    feat = hog(
+        img,
+        orientations=orientations,
+        pixels_per_cell=(cell_size, cell_size),
+        cells_per_block=(block_size, block_size),
+        block_norm='L2-Hys',
+        visualize=False,
+        feature_vector=False  # shape: (H_blocks, W_blocks, 2, 2, 9)
+    )
+
+    # reshape: (H_blocks, W_blocks, 2, 2, 9) → (H_blocks, W_blocks, 36)
+    H, W, c0, c1, o = feat.shape
+    feat = feat.reshape(H, W, -1)
+    return feat  # shape: (H, W, 36)
 
 
 def draw_histogram(df, out_path):
@@ -25,32 +47,34 @@ def draw_histogram(df, out_path):
     plt.title("Anomaly Score Histogram")
     plt.legend()
     plt.grid(True)
-
     os.makedirs(out_path, exist_ok=True)
     plt.savefig(os.path.join(out_path, "histogram.png"))
     plt.close()
 
 
+def save_anomaly_map(anomaly_map, save_path):
+    plt.imshow(anomaly_map, cmap="jet")
+    plt.colorbar()
+    plt.axis("off")
+    plt.savefig(save_path, bbox_inches='tight', pad_inches=0.1)
+    plt.close()
+
+
 def main():
-    # ===== 設定 =====
     base_dir = "/net/nfs3/export/home/hasegawa/workspace/"
     data_root = os.path.join(base_dir, "data", "bestex", "splash")
     out_dir = os.path.join(base_dir, "bestex", "splash", "contour-detection2", "_out")
     os.makedirs(out_dir, exist_ok=True)
 
-    SAVE_HOG_IMAGE = False
-
-    # 使用枚数制限
     max_train_ok = 50
     max_test_ok = 50
     max_test_ng = 100
 
-    # ===== データ読み込み =====
     data = load_data(data_root)
     template_path = os.path.join(data_root, "20250326", "OK", "1.png")
     ref = cv2.imread(template_path)
 
-    train_ok_feats = []
+    train_feat_maps = []
     test_results = []
     count_train_ok = 0
     count_test_ok = 0
@@ -66,23 +90,26 @@ def main():
                 img = cv2.imread(path)
                 reg = rigid_registration(img, ref)
                 reg = center_crop(reg, 3500)
-                feat = hog_feature(reg)
-                train_ok_feats.append(feat)
+                fmap = hog_feature_map(reg)
+                train_feat_maps.append(fmap)
                 count_train_ok += 1
                 continue
             elif count_test_ok >= max_test_ok:
-                continue  # OK検証用はこれ以上使わない
-
+                continue
         elif label == "NG":
             if count_test_ng >= max_test_ng:
-                continue  # NGはこれ以上使わない
+                continue
 
-        # ---- テスト対象 ----
+        # --- テスト対象処理 ---
         img = cv2.imread(path)
         reg = rigid_registration(img, ref)
         reg = center_crop(reg, 3500)
-        feat = hog_feature(reg)
-        score = anomaly_score(feat, train_ok_feats)
+        test_map = hog_feature_map(reg)
+
+        ref_avg = np.mean(train_feat_maps, axis=0)  # shape: (H, W, 36)
+        anomaly_map = np.linalg.norm(test_map - ref_avg, axis=2)  # shape: (H, W)
+
+        score = float(np.max(anomaly_map))  # または np.mean(anomaly_map)
 
         test_results.append({
             "filename": name,
@@ -95,13 +122,12 @@ def main():
         else:
             count_test_ng += 1
 
-        # オプションでHOG保存
-        if SAVE_HOG_IMAGE:
-            hog_dir = os.path.join(out_dir, "hog", label)
-            os.makedirs(hog_dir, exist_ok=True)
-            save_hog_visual(reg, os.path.join(hog_dir, f"{name}.png"))
+        # --- ヒートマップ保存 ---
+        anomaly_dir = os.path.join(out_dir, "anomaly_map", label)
+        os.makedirs(anomaly_dir, exist_ok=True)
+        save_anomaly_map(anomaly_map, os.path.join(anomaly_dir, f"{name}.png"))
 
-    # ===== 結果保存 =====
+    # --- 結果保存 ---
     df = pd.DataFrame(test_results)
     df.to_csv(os.path.join(out_dir, "score.csv"), index=False)
 
@@ -116,7 +142,6 @@ def main():
     print(f"[INFO] test_ng  = {count_test_ng}")
     print(f"[INFO] total_test = {len(test_results)}")
 
-    # ===== ヒストグラム描画 =====
     draw_histogram(df, out_dir)
 
 
